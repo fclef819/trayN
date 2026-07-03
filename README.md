@@ -113,7 +113,7 @@ v1.2.3
 Draft and prerelease releases are ignored.
 
 This repository includes a GitHub Actions workflow at `.github/workflows/release.yml`.
-When a tag matching `v*.*.*` is pushed, the workflow builds both projects, publishes Windows x64 self-contained single-file executables, generates `trayN.exe.sha256`, and creates a GitHub Release.
+When a tag matching `v*.*.*` is pushed, the workflow builds both projects, publishes Windows x64 self-contained single-file executables, generates `trayN.exe.sha256`, packages the two executables into `trayN.zip`, and creates a GitHub Release.
 
 Create a release by pushing a version tag:
 
@@ -127,6 +127,7 @@ Attach these release assets:
 - `trayN.exe`
 - `trayN.exe.sha256`
 - `trayN.Updater.exe`
+- `trayN.zip`
 
 The updater replaces only `trayN.exe`. Updating `trayN.Updater.exe` itself is intentionally not implemented.
 

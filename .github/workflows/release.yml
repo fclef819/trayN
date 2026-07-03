@@ -65,13 +65,22 @@ jobs:
           $hash = (Get-FileHash .\artifacts\trayN.exe -Algorithm SHA256).Hash
           "$hash  trayN.exe" | Set-Content .\artifacts\trayN.exe.sha256 -Encoding ascii
 
+      - name: Create zip package
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path .\artifacts\trayN.exe, .\artifacts\trayN.Updater.exe `
+            -DestinationPath .\artifacts\trayN.zip `
+            -Force
+
       - name: Verify release assets
         shell: pwsh
         run: |
           $required = @(
             ".\artifacts\trayN.exe",
             ".\artifacts\trayN.exe.sha256",
-            ".\artifacts\trayN.Updater.exe"
+            ".\artifacts\trayN.Updater.exe",
+            ".\artifacts\trayN.zip"
           )
           foreach ($path in $required) {
             if (-not (Test-Path $path)) {
@@ -88,6 +97,7 @@ jobs:
             .\artifacts\trayN.exe `
             .\artifacts\trayN.exe.sha256 `
             .\artifacts\trayN.Updater.exe `
+            .\artifacts\trayN.zip `
             --title "${{ github.ref_name }}" `
             --notes "Release ${{ github.ref_name }}" `
             --verify-tag
