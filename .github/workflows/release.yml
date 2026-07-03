@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and create GitHub Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tag must use v1.2.3 format. Actual: $tag"
+          }
+          $version = $tag.Substring(1)
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore .\trayN.sln
+
+      - name: Build
+        run: dotnet build .\trayN.sln -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Publish trayN
+        run: >
+          dotnet publish .\TrayN\TrayN.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -o .\artifacts
+
+      - name: Publish updater
+        run: >
+          dotnet publish .\TrayN.Updater\TrayN.Updater.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -o .\artifacts
+
+      - name: Generate SHA-256 file
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash .\artifacts\trayN.exe -Algorithm SHA256).Hash
+          "$hash  trayN.exe" | Set-Content .\artifacts\trayN.exe.sha256 -Encoding ascii
+
+      - name: Verify release assets
+        shell: pwsh
+        run: |
+          $required = @(
+            ".\artifacts\trayN.exe",
+            ".\artifacts\trayN.exe.sha256",
+            ".\artifacts\trayN.Updater.exe"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing release asset: $path"
+            }
+          }
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            .\artifacts\trayN.exe `
+            .\artifacts\trayN.exe.sha256 `
+            .\artifacts\trayN.Updater.exe `
+            --title "${{ github.ref_name }}" `
+            --notes "Release ${{ github.ref_name }}" `
+            --verify-tag
