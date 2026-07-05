@@ -9,9 +9,12 @@ internal sealed class HotKeyManager : NativeWindow, IDisposable
     private const int WmHotKey = 0x0312;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
+    private const uint ModShift = 0x0004;
+    private const uint ModWin = 0x0008;
     private bool registered;
 
     public event EventHandler? HotKeyPressed;
+    public HotKeySettings? RegisteredHotKey { get; private set; }
 
     public HotKeyManager()
     {
@@ -20,8 +23,61 @@ internal sealed class HotKeyManager : NativeWindow, IDisposable
 
     public bool RegisterDefaultHotKey()
     {
-        registered = RegisterHotKey(Handle, HotKeyId, ModControl | ModAlt, (uint)Keys.M);
-        return registered;
+        return TryRegister(HotKeySettings.Default(), out _);
+    }
+
+    public bool TryRegister(HotKeySettings settings, out string error)
+    {
+        if (!HotKeyValidator.TryValidate(settings, out error))
+        {
+            return false;
+        }
+
+        if (RegisterHotKey(Handle, HotKeyId, ToModifierFlags(settings), (uint)settings.Key))
+        {
+            registered = true;
+            RegisteredHotKey = settings.Clone();
+            error = string.Empty;
+            return true;
+        }
+
+        registered = false;
+        RegisteredHotKey = null;
+        error = LastWin32ErrorMessage();
+        return false;
+    }
+
+    public bool ChangeHotKey(HotKeySettings newSettings, out string error)
+    {
+        var previous = RegisteredHotKey?.Clone();
+        if (registered)
+        {
+            UnregisterCurrent();
+        }
+
+        if (TryRegister(newSettings, out error))
+        {
+            return true;
+        }
+
+        if (previous is not null && !TryRegister(previous, out var rollbackError))
+        {
+            error += "\n\n以前のホットキーの再登録にも失敗しました: " + rollbackError;
+        }
+
+        return false;
+    }
+
+    public void UnregisterCurrent()
+    {
+        if (!registered)
+        {
+            return;
+        }
+
+        UnregisterHotKey(Handle, HotKeyId);
+        registered = false;
+        RegisteredHotKey = null;
     }
 
     protected override void WndProc(ref Message m)
@@ -39,8 +95,7 @@ internal sealed class HotKeyManager : NativeWindow, IDisposable
     {
         if (registered)
         {
-            UnregisterHotKey(Handle, HotKeyId);
-            registered = false;
+            UnregisterCurrent();
         }
 
         DestroyHandle();
@@ -56,5 +111,31 @@ internal sealed class HotKeyManager : NativeWindow, IDisposable
     {
         var error = Marshal.GetLastWin32Error();
         return new Win32Exception(error).Message;
+    }
+
+    private static uint ToModifierFlags(HotKeySettings settings)
+    {
+        var modifiers = 0u;
+        if (settings.Alt)
+        {
+            modifiers |= ModAlt;
+        }
+
+        if (settings.Control)
+        {
+            modifiers |= ModControl;
+        }
+
+        if (settings.Shift)
+        {
+            modifiers |= ModShift;
+        }
+
+        if (settings.Win)
+        {
+            modifiers |= ModWin;
+        }
+
+        return modifiers;
     }
 }

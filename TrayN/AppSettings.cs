@@ -11,6 +11,12 @@ internal sealed class AppSettings
     public int WindowHeight { get; set; } = 350;
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
 
+    [JsonPropertyName("hotKey")]
+    public HotKeySettings? HotKey { get; set; }
+
+    [JsonIgnore]
+    public HotKeySettings EffectiveHotKey => HotKeyValidator.NormalizeOrDefault(HotKey);
+
     [JsonIgnore]
     public Rectangle? SavedBounds
     {

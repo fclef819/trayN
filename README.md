@@ -1,6 +1,6 @@
 # trayN
 
-trayN is a Windows task-tray quick memo app for temporary plain-text notes. It stays in the notification area, opens with `Ctrl + Alt + M`, and saves one memo automatically.
+trayN is a Windows task-tray quick memo app for temporary plain-text notes. It stays in the notification area, opens with the default hotkey `Ctrl + Alt + M`, and saves one memo automatically.
 
 ## Project Structure
 
@@ -14,6 +14,10 @@ TrayN/
   MemoStore.cs
   SettingsStore.cs
   HotKeyManager.cs
+  HotKeySettings.cs
+  HotKeySettingsForm.cs
+  HotKeyFormatter.cs
+  HotKeyValidator.cs
   SingleInstanceManager.cs
   IpcSignal.cs
   IpcServer.cs
@@ -74,18 +78,41 @@ Files:
 - `%LOCALAPPDATA%\trayn\memo.txt`
 - `%LOCALAPPDATA%\trayn\settings.json`
 
-The memo file is UTF-8. Settings include the memo window bounds and the last automatic update check time in UTC.
+The memo file is UTF-8. Settings include the memo window bounds, hotkey settings, and the last automatic update check time in UTC.
+
+Hotkey settings are stored in a human-readable form:
+
+```json
+{
+  "hotKey": {
+    "control": true,
+    "alt": true,
+    "shift": false,
+    "win": false,
+    "key": "M"
+  }
+}
+```
+
+If `hotKey` is missing or invalid, trayN uses `Ctrl + Alt + M`.
 
 ## Shortcut and Tray Menu
 
-- `Ctrl + Alt + M`: show or hide the memo window
+- Default hotkey: `Ctrl + Alt + M`
+- The hotkey shows or hides the memo window
 - `Esc`: hide the memo window
 - Window close button: hide the memo window
 - Tray icon double-click: show the memo window
 - Tray menu:
   - `メモを表示`
+  - `ホットキー設定`
+  - current hotkey display
   - `アップデートを確認`
   - `終了`
+
+Choose `ホットキー設定` from the tray menu to change the global hotkey. The setting dialog captures the actual key combination you press, supports `Ctrl`, `Alt`, `Shift`, `Win`, and one normal key, and applies the new hotkey immediately after saving.
+
+Remote Desktop, Amazon WorkSpaces, and similar environments may let a local app or the host OS capture global hotkeys before trayN receives them. If the hotkey does not work, choose another combination from the tray menu. If hotkey registration fails, trayN keeps running and the memo can still be opened from the tray icon.
 
 Normal user exit is only through the tray menu `終了`.
 
@@ -162,12 +189,24 @@ $hash = (Get-FileHash .\trayN.exe -Algorithm SHA256).Hash
 ## Manual Test Checklist
 
 - Start trayN and confirm only the tray icon appears.
-- Press `Ctrl + Alt + M` and confirm the memo window toggles.
+- Press the default `Ctrl + Alt + M` and confirm the memo window toggles on first launch.
+- Open `ホットキー設定` and confirm the current value is shown.
+- Change to a new hotkey and confirm it works immediately without restarting.
+- Restart trayN and confirm the changed hotkey is restored.
+- Cancel the hotkey dialog and confirm the setting is not changed.
+- Use `既定値へ戻す`, save, and confirm `Ctrl + Alt + M` is restored.
+- Try a hotkey already used by another app and confirm an error is shown.
+- After a registration failure, confirm the previous hotkey still works.
+- Confirm modifier-only input cannot be saved.
+- Confirm reserved Windows shortcuts such as `Alt + Tab`, `Alt + F4`, `Win + L`, and `Win + R` cannot be saved.
+- Confirm the tray menu still opens the memo when no hotkey is registered.
 - Close the memo window and confirm trayN remains resident.
 - Type text, wait briefly, restart, and confirm the memo is restored.
 - Type text and exit immediately from the tray menu, then confirm text is not lost.
 - Start a second `trayN.exe` and confirm the existing memo window is shown.
 - Corrupt `%LOCALAPPDATA%\trayn\settings.json` and confirm startup still works.
+- Remove `hotKey` from `%LOCALAPPDATA%\trayn\settings.json` and confirm `Ctrl + Alt + M` is used.
+- Put an invalid `hotKey.key` value in `%LOCALAPPDATA%\trayn\settings.json` and confirm startup still works.
 - Move monitors or edit saved bounds off-screen and confirm the window returns to a visible area.
 - Confirm the tray icon disappears after exit.
 - Confirm manual update check does not block memo editing.

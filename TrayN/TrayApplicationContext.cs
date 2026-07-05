@@ -14,6 +14,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly System.Windows.Forms.Timer saveTimer;
     private readonly HotKeyManager hotKeyManager;
     private readonly IpcServer ipcServer;
+    private ToolStripMenuItem? currentHotKeyMenuItem;
     private bool savePending;
     private UpdateInfo? latestUpdate;
 
@@ -43,10 +44,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         hotKeyManager = new HotKeyManager();
         hotKeyManager.HotKeyPressed += (_, _) => ToggleMemoWindow();
-        if (!hotKeyManager.RegisterDefaultHotKey())
-        {
-            ShowBalloon("Shortcut unavailable", "Ctrl + Alt + M could not be registered: " + HotKeyManager.LastWin32ErrorMessage(), ToolTipIcon.Warning);
-        }
+        RegisterStartupHotKey();
+        UpdateHotKeyDisplay();
 
         var context = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         ipcServer = new IpcServer(context, ShowMemoWindow);
@@ -58,6 +57,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("メモを表示", null, (_, _) => ShowMemoWindow());
+        menu.Items.Add("ホットキー設定", null, (_, _) => ShowHotKeySettingsDialog());
+        currentHotKeyMenuItem = new ToolStripMenuItem { Enabled = false };
+        menu.Items.Add(currentHotKeyMenuItem);
         menu.Items.Add("アップデートを確認", null, async (_, _) => await CheckForUpdatesManualAsync());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("終了", null, (_, _) => ExitFromMenu());
@@ -77,6 +79,80 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
         };
         return icon;
+    }
+
+    private void RegisterStartupHotKey()
+    {
+        var desired = settings.EffectiveHotKey;
+        if (hotKeyManager.TryRegister(desired, out var error))
+        {
+            return;
+        }
+
+        ShowBalloon(
+            "Shortcut unavailable",
+            $"{HotKeyFormatter.Format(desired)} could not be registered: {error}",
+            ToolTipIcon.Warning);
+
+        var defaultHotKey = HotKeySettings.Default();
+        if (HotKeyFormatter.Format(desired) == HotKeyFormatter.Format(defaultHotKey))
+        {
+            return;
+        }
+
+        if (!hotKeyManager.TryRegister(defaultHotKey, out var defaultError))
+        {
+            ShowBalloon(
+                "Shortcut unavailable",
+                $"{HotKeyFormatter.Format(defaultHotKey)} could not be registered: {defaultError}\nYou can still open the memo from the tray icon.",
+                ToolTipIcon.Warning);
+        }
+    }
+
+    private void ShowHotKeySettingsDialog()
+    {
+        var current = hotKeyManager.RegisteredHotKey ?? settings.EffectiveHotKey;
+        using var dialog = new HotKeySettingsForm(current);
+        if (dialog.ShowDialog(form) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var selected = dialog.SelectedHotKey;
+        if (!hotKeyManager.ChangeHotKey(selected, out var error))
+        {
+            MessageBox.Show(
+                form,
+                $"{HotKeyFormatter.Format(selected)} を登録できませんでした。\n\n{error}",
+                "trayN",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            UpdateHotKeyDisplay();
+            return;
+        }
+
+        settings.HotKey = selected.Clone();
+        if (!settingsStore.Save(settings))
+        {
+            ShowBalloon("Settings save failed", "The hotkey was changed, but settings could not be saved.", ToolTipIcon.Warning);
+        }
+
+        UpdateHotKeyDisplay();
+    }
+
+    private void UpdateHotKeyDisplay()
+    {
+        var hotKeyText = hotKeyManager.RegisteredHotKey is null
+            ? "未登録"
+            : HotKeyFormatter.Format(hotKeyManager.RegisteredHotKey);
+
+        if (currentHotKeyMenuItem is not null)
+        {
+            currentHotKeyMenuItem.Text = "現在のホットキー: " + hotKeyText;
+        }
+
+        var tooltip = "trayN - " + hotKeyText;
+        notifyIcon.Text = tooltip.Length <= 63 ? tooltip : "trayN";
     }
 
     private void ToggleMemoWindow()
