@@ -12,10 +12,15 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
+    <ApplicationIcon>..\trayN-icons\trayN.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\trayN-icons\trayN.ico" LogicalName="TrayN.AppIcon.ico" />
+    <EmbeddedResource Include="..\trayN-tray-icons\trayN-tray.ico" LogicalName="TrayN.TrayIcon.ico" />
+  </ItemGroup>
 </Project>

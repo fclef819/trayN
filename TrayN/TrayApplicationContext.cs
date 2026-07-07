@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing;
 
 namespace TrayN;
 
@@ -9,6 +10,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly SettingsStore settingsStore = new();
     private readonly UpdateService updateService = new();
     private readonly AppSettings settings;
+    private readonly Icon appIcon;
+    private readonly Icon trayIcon;
     private readonly MemoForm form;
     private readonly NotifyIcon notifyIcon;
     private readonly System.Windows.Forms.Timer saveTimer;
@@ -22,8 +25,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         this.singleInstance = singleInstance;
         settings = settingsStore.Load();
+        appIcon = ResourceIcons.LoadAppIcon();
+        trayIcon = ResourceIcons.LoadTrayIcon();
 
         form = new MemoForm();
+        form.Icon = appIcon;
         form.ApplySavedBounds(settings.SavedBounds);
         form.MemoText = memoStore.Load();
         form.MemoTextChanged += (_, _) => QueueMemoSave();
@@ -66,7 +72,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var icon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = trayIcon,
             Text = "trayN",
             ContextMenuStrip = menu
         };
@@ -313,6 +319,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         form.AllowRealClose();
         form.Close();
         form.Dispose();
+        appIcon.Dispose();
+        trayIcon.Dispose();
         singleInstance.Dispose();
         base.ExitThreadCore();
     }
